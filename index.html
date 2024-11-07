@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: #e0f7fa;
+      overflow: hidden;
+    }
+
+    #weather-container {
+      background-color: #ffffff;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+      max-width: 450px;
+      width: 100%;
+      text-align: center;
+      opacity: 0;
+      animation: fadeIn 1s forwards;
+      z-index: 1;
+      position: relative;
+    }
+
+    h1 {
+      font-size: 26px;
+      color: #00796b;
+      margin-bottom: 15px;
+    }
+
+    .weather-info, .time-info {
+      margin: 15px 0;
+      font-size: 16px;
+      color: #4a4a4a;
+      opacity: 0;
+      animation: fadeIn 1s forwards;
+      animation-delay: 1s;
+    }
+
+    .weather-info span {
+      font-weight: bold;
+      display: block;
+      margin: 5px 0;
+    }
+
+    .time-info {
+      color: #666;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #00796b;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: background-color 0.3s, transform 0.3s;
+    }
+
+    button:hover {
+      background-color: #00695c;
+      transform: scale(1.05);
+    }
+
+    .search-container {
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .suggestions {
+      list-style-type: none;
+      margin: 0;
+      padding: 0;
+      border: 1px solid #ddd;
+      border-top: none;
+      position: absolute;
+      width: 100%;
+      background-color: #fff;
+      max-height: 150px;
+      overflow-y: auto;
+      z-index: 10;
+      border-radius: 0 0 6px 6px;
+      opacity: 0;
+      transform: translateY(-10px);
+      animation: slideDown 0.3s forwards;
+    }
+
+    .suggestions li {
+      padding: 10px;
+      cursor: pointer;
+      color: #00796b;
+      font-weight: bold;
+    }
+
+    .suggestions li:hover {
+      background-color: #e0f2f1;
+    }
+
+    #location-request {
+      margin: 20px 0;
+      font-size: 16px;
+      color: red;
+    }
+
+    .flag {
+      width: 24px;
+      height: 16px;
+      display: inline-block;
+      margin-left: 5px;
+      vertical-align: middle;
+    }
+
+    /* Keyframe animations */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div id="weather-container">
+    <h1>Weather App</h1>
+    <div id="location-request">
+      <span>Detecting your location for current weather...</span>
+    </div>
+    <div class="search-container">
+      <input type="text" id="city-input" placeholder="Enter city name" oninput="suggestCities()">
+      <ul id="suggestions-list" class="suggestions"></ul>
+      <button onclick="fetchCityWeather()">Search</button>
+    </div>
+    <div id="current-weather" class="weather-info"></div>
+    <div id="city-weather" class="weather-info"></div>
+    <div id="past-data-container" class="weather-info"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <script>
+    const API_KEY = "d1845658f92b31c64bd94f06f7188c9c"; // Your OpenWeather API key
+    let suggestions = [];
+    const indianCities = [
+			'Adilabad',
+			'Anantapur',
+			'Chittoor',
+			'Kakinada',
+			'Guntur',
+			'Hyderabad',
+			'Karimnagar',
+			'Khammam',
+			'Krishna',
+			'Kurnool',
+			'Mahbubnagar',
+			'Medak',
+			'Nalgonda',
+			'Nizamabad',
+			'Ongole',
+			'Hyderabad',
+			'Srikakulam',
+			'Nellore',
+			'Visakhapatnam',
+			'Vizianagaram',
+			'Warangal',
+			'Eluru',
+			'Kadapa',
+			'Anjaw',
+			'Changlang',
+			'East Siang',
+			'Kurung Kumey',
+			'Lohit',
+			'Lower Dibang Valley',
+			'Lower Subansiri',
+			'Papum Pare',
+			'Tawang',
+			'Tirap',
+			'Dibang Valley',
+			'Upper Siang',
+			'Upper Subansiri',
+			'West Kameng',
+			'West Siang',
+			'Baksa',
+			'Barpeta',
+			'Bongaigaon',
+			'Cachar',
+			'Chirang',
+			'Darrang',
+			'Dhemaji',
+			'Dima Hasao',
+			'Dhubri',
+			'Dibrugarh',
+			'Goalpara',
+			'Golaghat',
+			'Hailakandi',
+			'Jorhat',
+			'Kamrup',
+			'Kamrup Metropolitan',
+			'Karbi Anglong',
+			'Karimganj',
+			'Kokrajhar',
+			'Lakhimpur',
+			'Marigaon',
+			'Nagaon',
+			'Nalbari',
+			'Sibsagar',
+			'Sonitpur',
+			'Tinsukia',
+			'Udalguri',
+			'Araria',
+			'Arwal',
+			'Aurangabad',
+			'Banka',
+			'Begusarai',
+			'Bhagalpur',
+			'Bhojpur',
+			'Buxar',
+			'Darbhanga',
+			'East Champaran',
+			'Gaya',
+			'Gopalganj',
+			'Jamui',
+			'Jehanabad',
+			'Kaimur',
+			'Katihar',
+			'Khagaria',
+			'Kishanganj',
+			'Lakhisarai',
+			'Madhepura',
+			'Madhubani',
+			'Munger',
+			'Muzaffarpur',
+			'Nalanda',
+			'Nawada',
+			'Patna',
+			'Purnia',
+			'Rohtas',
+			'Saharsa',
+			'Samastipur',
+			'Saran',
+			'Sheikhpura',
+			'Sheohar',
+			'Sitamarhi',
+			'Siwan',
+			'Supaul',
+			'Vaishali',
+			'West Champaran',
+			'Chandigarh',
+			'Bastar',
+			'Bijapur',
+			'Bilaspur',
+			'Dantewada',
+			'Dhamtari',
+			'Durg',
+			'Jashpur',
+			'Janjgir-Champa',
+			'Korba',
+			'Koriya',
+			'Kanker',
+			'Kabirdham (Kawardha)',
+			'Mahasamund',
+			'Narayanpur',
+			'Raigarh',
+			'Rajnandgaon',
+			'Raipur',
+			'Surguja',
+			'Dadra and Nagar Haveli',
+			'Daman',
+			'Diu',
+			'Central Delhi',
+			'East Delhi',
+			'New Delhi',
+			'North Delhi',
+			'North East Delhi',
+			'North West Delhi',
+			'South Delhi',
+			'South West Delhi',
+			'West Delhi',
+			'North Goa',
+			'South Goa',
+
+			'Ahmedabad',
+			'Amreli district',
+			'Anand',
+			'Banaskantha',
+			'Bharuch',
+			'Bhavnagar',
+			'Dahod',
+			'The Dangs',
+			'Gandhinagar',
+			'Jamnagar',
+			'Junagadh',
+			'Kutch',
+			'Kheda',
+			'Mehsana',
+			'Narmada',
+			'Navsari',
+			'Patan',
+			'Panchmahal',
+			'Porbandar',
+			'Rajkot',
+			'Sabarkantha',
+			'Surendranagar',
+			'Surat',
+			'Vyara',
+			'Vadodara',
+			'Valsad',
+
+			'Ambala',
+			'Bhiwani',
+			'Faridabad',
+			'Fatehabad',
+			'Gurgaon',
+			'Hissar',
+			'Jhajjar',
+			'Jind',
+			'Karnal',
+			'Kaithal',
+			'Kurukshetra',
+			'Mahendragarh',
+			'Mewat',
+			'Palwal',
+			'Panchkula',
+			'Panipat',
+			'Rewari',
+			'Rohtak',
+			'Sirsa',
+			'Sonipat',
+			'Yamuna Nagar',
+
+			'Bilaspur',
+			'Chamba',
+			'Hamirpur',
+			'Kangra',
+			'Kinnaur',
+			'Kullu',
+			'Lahaul and Spiti',
+			'Mandi',
+			'Shimla',
+			'Sirmaur',
+			'Solan',
+			'Una',
+
+			'Anantnag',
+			'Badgam',
+			'Bandipora',
+			'Baramulla',
+			'Doda',
+			'Ganderbal',
+			'Jammu',
+			'Kargil',
+			'Kathua',
+			'Kishtwar',
+			'Kupwara',
+			'Kulgam',
+			'Leh',
+			'Poonch',
+			'Pulwama',
+			'Rajauri',
+			'Ramban',
+			'Reasi',
+			'Samba',
+			'Shopian',
+			'Srinagar',
+			'Udhampur',
+
+			'Bokaro',
+			'Chatra',
+			'Deoghar',
+			'Dhanbad',
+			'Dumka',
+			'East Singhbhum',
+			'Garhwa',
+			'Giridih',
+			'Godda',
+			'Gumla',
+			'Hazaribag',
+			'Jamtara',
+			'Khunti',
+			'Koderma',
+			'Latehar',
+			'Lohardaga',
+			'Pakur',
+			'Palamu',
+			'Ramgarh',
+			'Ranchi',
+			'Sahibganj',
+			'Seraikela Kharsawan',
+			'Simdega',
+			'West Singhbhum',
+
+			'Bagalkot',
+			'Bangalore Rural',
+			'Bangalore Urban',
+			'Belgaum',
+			'Bellary',
+			'Bidar',
+			'Bijapur',
+			'Chamarajnagar',
+			'Chikkamagaluru',
+			'Chikkaballapur',
+			'Chitradurga',
+			'Davanagere',
+			'Dharwad',
+			'Dakshina Kannada',
+			'Gadag',
+			'Gulbarga',
+			'Hassan',
+			'Haveri district',
+			'Kodagu',
+			'Kolar',
+			'Koppal',
+			'Mandya',
+			'Mysore',
+			'Raichur',
+			'Shimoga',
+			'Tumkur',
+			'Udupi',
+			'Uttara Kannada',
+			'Ramanagara',
+			'Yadgir',
+
+			'Alappuzha',
+			'Ernakulam',
+			'Idukki',
+			'Kannur',
+			'Kasaragod',
+			'Kollam',
+			'Kottayam',
+			'Kozhikode',
+			'Malappuram',
+			'Palakkad',
+			'Pathanamthitta',
+			'Thrissur',
+			'Thiruvananthapuram',
+			'Wayanad',
+
+			'Alirajpur',
+			'Anuppur',
+			'Ashok Nagar',
+			'Balaghat',
+			'Barwani',
+			'Betul',
+			'Bhind',
+			'Bhopal',
+			'Burhanpur',
+			'Chhatarpur',
+			'Chhindwara',
+			'Damoh',
+			'Datia',
+			'Dewas',
+			'Dhar',
+			'Dindori',
+			'Guna',
+			'Gwalior',
+			'Harda',
+			'Hoshangabad',
+			'Indore',
+			'Jabalpur',
+			'Jhabua',
+			'Katni',
+			'Khandwa (East Nimar)',
+			'Khargone (West Nimar)',
+			'Mandla',
+			'Mandsaur',
+			'Morena',
+			'Narsinghpur',
+			'Neemuch',
+			'Panna',
+			'Rewa',
+			'Rajgarh',
+			'Ratlam',
+			'Raisen',
+			'Sagar',
+			'Satna',
+			'Sehore',
+			'Seoni',
+			'Shahdol',
+			'Shajapur',
+			'Sheopur',
+			'Shivpuri',
+			'Sidhi',
+			'Singrauli',
+			'Tikamgarh',
+			'Ujjain',
+			'Umaria',
+			'Vidisha',
+			'Ahmednagar',
+			'Akola',
+			'Amravati',
+			'Aurangabad',
+			'Bhandara',
+			'Beed',
+			'Buldhana',
+			'Chandrapur',
+			'Dhule',
+			'Gadchiroli',
+			'Gondia',
+			'Hingoli',
+			'Jalgaon',
+			'Jalna',
+			'Kolhapur',
+			'Latur',
+			'Mumbai City',
+			'Mumbai suburban',
+			'Nandurbar',
+			'Nanded',
+			'Nagpur',
+			'Nashik',
+			'Osmanabad',
+			'Parbhani',
+			'Pune',
+			'Raigad',
+			'Ratnagiri',
+			'Sindhudurg',
+			'Sangli',
+			'Solapur',
+			'Satara',
+			'Thane',
+			'Wardha',
+			'Washim',
+			'Yavatmal',
+
+			'Bishnupur',
+			'Churachandpur',
+			'Chandel',
+			'Imphal East',
+			'Senapati',
+			'Tamenglong',
+			'Thoubal',
+			'Ukhrul',
+			'Imphal West',
+
+			'East Garo Hills',
+			'East Khasi Hills',
+			'Jaintia Hills',
+			'Ri Bhoi',
+			'South Garo Hills',
+			'West Garo Hills',
+			'West Khasi Hills',
+
+			'Aizawl',
+			'Champhai',
+			'Kolasib',
+			'Lawngtlai',
+			'Lunglei',
+			'Mamit',
+			'Saiha',
+			'Serchhip',
+
+			'Dimapur',
+			'Kohima',
+			'Mokokchung',
+			'Mon',
+			'Phek',
+			'Tuensang',
+			'Wokha',
+			'Zunheboto',
+
+			'Angul',
+			'Boudh (Bauda)',
+			'Bhadrak',
+			'Balangir',
+			'Bargarh (Baragarh)',
+			'Balasore',
+			'Cuttack',
+			'Debagarh (Deogarh)',
+			'Dhenkanal',
+			'Ganjam',
+			'Gajapati',
+			'Jharsuguda',
+			'Jajpur',
+			'Jagatsinghpur',
+			'Khordha',
+			'Kendujhar (Keonjhar)',
+			'Kalahandi',
+			'Kandhamal',
+			'Koraput',
+			'Kendrapara',
+			'Malkangiri',
+			'Mayurbhanj',
+			'Nabarangpur',
+			'Nuapada',
+			'Nayagarh',
+			'Puri',
+			'Rayagada',
+			'Sambalpur',
+			'Subarnapur (Sonepur)',
+			'Sundergarh',
+
+			'Karaikal',
+			'Mahe',
+			'Pondicherry',
+			'Yanam',
+
+			'Amritsar',
+			'Barnala',
+			'Bathinda',
+			'Firozpur',
+			'Faridkot',
+			'Fatehgarh Sahib',
+			'Fazilka',
+			'Gurdaspur',
+			'Hoshiarpur',
+			'Jalandhar',
+			'Kapurthala',
+			'Ludhiana',
+			'Mansa',
+			'Moga',
+			'Sri Muktsar Sahib',
+			'Pathankot',
+			'Patiala',
+			'Rupnagar',
+			'Ajitgarh (Mohali)',
+			'Sangrur',
+			'Nawanshahr',
+			'Tarn Taran',
+
+			'Ajmer',
+			'Alwar',
+			'Bikaner',
+			'Barmer',
+			'Banswara',
+			'Bharatpur',
+			'Baran',
+			'Bundi',
+			'Bhilwara',
+			'Churu',
+			'Chittorgarh',
+			'Dausa',
+			'Dholpur',
+			'Dungapur',
+			'Ganganagar',
+			'Hanumangarh',
+			'Jhunjhunu',
+			'Jalore',
+			'Jodhpur',
+			'Jaipur',
+			'Jaisalmer',
+			'Jhalawar',
+			'Karauli',
+			'Kota',
+			'Nagaur',
+			'Pali',
+			'Pratapgarh',
+			'Rajsamand',
+			'Sikar',
+			'Sawai Madhopur',
+			'Sirohi',
+			'Tonk',
+			'Udaipur',
+
+			'East Sikkim',
+			'North Sikkim',
+			'South Sikkim',
+			'West Sikkim',
+
+			'Ariyalur',
+			'Chennai',
+			'Coimbatore',
+			'Cuddalore',
+			'Dharmapuri',
+			'Dindigul',
+			'Erode',
+			'Kanchipuram',
+			'Kanyakumari',
+			'Karur',
+			'Madurai',
+			'Nagapattinam',
+			'Nilgiris',
+			'Namakkal',
+			'Perambalur',
+			'Pudukkottai',
+			'Ramanathapuram',
+			'Salem',
+			'Sivaganga',
+			'Tirupur',
+			'Tiruchirappalli',
+			'Theni',
+			'Tirunelveli',
+			'Thanjavur',
+			'Thoothukudi',
+			'Tiruvallur',
+			'Tiruvarur',
+			'Tiruvannamalai',
+			'Vellore',
+			'Viluppuram',
+			'Virudhunagar',
+
+			'Dhalai',
+			'North Tripura',
+			'South Tripura',
+			'Khowai',
+			'West Tripura',
+
+			'Agra',
+			'Allahabad',
+			'Aligarh',
+			'Ambedkar Nagar',
+			'Auraiya',
+			'Azamgarh',
+			'Barabanki',
+			'Budaun',
+			'Bagpat',
+			'Bahraich',
+			'Bijnor',
+			'Ballia',
+			'Banda',
+			'Balrampur',
+			'Bareilly',
+			'Basti',
+			'Bulandshahr',
+			'Chandauli',
+			'Chhatrapati Shahuji Maharaj Nagar',
+			'Chitrakoot',
+			'Deoria',
+			'Etah',
+			'Kanshi Ram Nagar',
+			'Etawah',
+			'Firozabad',
+			'Farrukhabad',
+			'Fatehpur',
+			'Faizabad',
+			'Gautam Buddh Nagar',
+			'Gonda',
+			'Ghazipur',
+			'Gorakhpur',
+			'Ghaziabad',
+			'Hamirpur',
+			'Hardoi',
+			'Mahamaya Nagar',
+			'Jhansi',
+			'Jalaun',
+			'Jyotiba Phule Nagar',
+			'Jaunpur district',
+			'Ramabai Nagar (Kanpur Dehat)',
+			'Kannauj',
+			'Kanpur',
+			'Kaushambi',
+			'Kushinagar',
+			'Lalitpur',
+			'Lakhimpur Kheri',
+			'Lucknow',
+			'Mau',
+			'Meerut',
+			'Maharajganj',
+			'Mahoba',
+			'Mirzapur',
+			'Moradabad',
+			'Mainpuri',
+			'Mathura',
+			'Muzaffarnagar',
+			'Panchsheel Nagar district (Hapur)',
+			'Pilibhit',
+			'Shamli',
+			'Pratapgarh',
+			'Rampur',
+			'Raebareli',
+			'Saharanpur',
+			'Sitapur',
+			'Shahjahanpur',
+			'Sant Kabir Nagar',
+			'Siddharthnagar',
+			'Sonbhadra',
+			'Sant Ravidas Nagar',
+			'Sultanpur',
+			'Shravasti',
+			'Unnao',
+			'Varanasi',
+
+			'Almora',
+			'Bageshwar',
+			'Chamoli',
+			'Champawat',
+			'Dehradun',
+			'Haridwar',
+			'Nainital',
+			'Pauri Garhwal',
+			'Pithoragarh',
+			'Rudraprayag',
+			'Tehri Garhwal',
+			'Udham Singh Nagar',
+			'Uttarkashi',
+
+			'Birbhum',
+			'Bankura',
+			'Bardhaman',
+			'Darjeeling',
+			'Dakshin Dinajpur',
+			'Hooghly',
+			'Howrah',
+			'Jalpaiguri',
+			'Cooch Behar',
+			'Kolkata',
+			'Maldah',
+			'Paschim Medinipur',
+			'Purba Medinipur',
+			'Murshidabad',
+			'Nadia',
+			'North 24 Parganas',
+			'South 24 Parganas',
+			'Purulia',
+			'Uttar Dinajpur',
+	];
+
+    // Get user's location weather
+    function getLocationWeather() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(success, error);
+      } else {
+        document.getElementById("location-request").textContent = "Geolocation is not supported by your browser.";
+      }
+    }
+
+    function success(position) {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          displayWeatherData(data, 'current-weather');
+          document.getElementById("location-request").style.display = "none";
+          addViewPastDataButton(lat, lon);
+        })
+        .catch(() => {
+          document.getElementById("location-request").textContent = "Unable to retrieve weather for your location.";
+        });
+    }
+
+    function error() {
+      document.getElementById("location-request").textContent = "Unable to retrieve your location.";
+    }
+
+    // Fetch weather for a custom city
+    function fetchCityWeather() {
+      const cityName = document.getElementById('city-input').value;
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${cityName}&appid=${API_KEY}&units=metric`;
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          if (data.cod === "404") {
+            alert("City not found!");
+          } else {
+            displayWeatherData(data, 'city-weather');
+            addViewPastDataButton(data.coord.lat, data.coord.lon);
+          }
+        });
+    }
+
+    // Display weather data in specified element
+    function displayWeatherData(data, elementId) {
+      const weatherContainer = document.getElementById(elementId);
+      const weather = data.weather[0].description;
+      const temp = data.main.temp;
+      const humidity = data.main.humidity;
+      const city = data.name;
+      const country = data.sys.country;
+      const flagUrl = `https://flagpedia.net/data/flags/h80/${country.toLowerCase()}.png`;
+
+      weatherContainer.innerHTML = `
+        <span>Weather in ${city}, <img src="${flagUrl}" alt="${country}" class="flag"></span>
+        <span>Condition: ${weather}</span>
+        <span>Temperature: ${temp}°C</span>
+        <span>Humidity: ${humidity}%</span>
+      `;
+      weatherContainer.style.animation = "fadeIn 1s forwards";
+    }
+
+    // Add "View Past Data" button
+    function addViewPastDataButton(lat, lon) {
+      const container = document.getElementById('past-data-container');
+      container.innerHTML = `
+        <button onclick="viewPastData(${lat}, ${lon})">View Past Data</button>
+      `;
+    }
+
+    // Redirect to past data page
+    function viewPastData(lat, lon) {
+      window.location.href = `past_data.html?lat=${lat}&lon=${lon}`;
+    }
+
+    // Suggest cities based on input
+    function suggestCities() {
+      const input = document.getElementById('city-input').value.toLowerCase();
+      if (input.length > 0) {
+        suggestions = indianCities.filter(city => city.toLowerCase().startsWith(input));
+        displaySuggestions();
+      } else {
+        document.getElementById('suggestions-list').innerHTML = '';
+      }
+    }
+
+    // Display city suggestions
+    function displaySuggestions() {
+      const suggestionsList = document.getElementById('suggestions-list');
+      suggestionsList.innerHTML = '';
+
+      suggestions.forEach((city) => {
+        const li = document.createElement('li');
+        li.textContent = city;
+        li.onclick = () => {
+          document.getElementById('city-input').value = city;
+          fetchCityWeather();
+          suggestionsList.innerHTML = '';
+        };
+        suggestionsList.appendChild(li);
+      });
+    }
+
+    // Initialize weather app by detecting location
+    window.onload = getLocationWeather;
+
+    // p5.js sketch for background weather effects
+    function setup() {
+      let canvas = createCanvas(windowWidth, windowHeight);
+      canvas.position(0, 0);
+      canvas.style('z-index', '-1');
+      noStroke();
+    }
+
+    function draw() {
+      background(224, 247, 250);
+      createClouds();
+    }
+
+    function createClouds() {
+      fill(255, 255, 255, 200);
+      ellipse(300, 150, 200, 100);
+      ellipse(500, 250, 220, 110);
+      ellipse(700, 100, 180, 90);
+      ellipse(900, 200, 210, 100);
+    }
+  </script>
+</body>
+</html>
