@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/addons/p5.sound.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <!-- Add input and button for number of days -->
+      <label for="daysInput">Enter Number of Days:</label>
+      <input type="number" id="daysInput" min="1" value="10">
+      <button id="fetchWeatherBtn">Fetch Weather History</button>
+    </main>
+    <script>
+// Global variables
+let weatherData = [];
+let temperatures = [];
+let humidityData = [];
+let dates = [];
+let weatherIcons = {};
+let graphHeight = 300;
+let graphWidth = 600;
+let padding = 60;
+let minTemp, maxTemp;
+let selectedMetric = 'temp';
+let offsetX = 0;
+let isPlaying = false;
+let frame = 0;
+let hoverIndex = -1;
+
+// Preload images for different weather conditions
+function preload() {
+  weatherIcons['rain'] = loadImage('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRYqDOlKyyyH_R72pnYWokauTXqhVBrhtATqw&s');
+  weatherIcons['cloud'] = loadImage('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRYqDOlKyyyH_R72pnYWokauTXqhVBrhtATqw&s');
+  weatherIcons['sun'] = loadImage('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRYqDOlKyyyH_R72pnYWokauTXqhVBrhtATqw&s');
+}
+
+function setup() {
+  // Make the canvas occupy the full width and height of the page
+  createCanvas(windowWidth, windowHeight);
+  graphWidth = windowWidth * 0.8; // 80% of the width for the graph
+  graphHeight = windowHeight * 0.6; // 60% of the height for the graph
+  padding = 60; // Add padding around the graph
+
+  textFont("Georgia");
+
+  // Metric Selector
+  let metricSelector = createSelect();
+  metricSelector.position(10, 10);
+  metricSelector.option('Temperature');
+  
+  metricSelector.changed(() => {
+    // Reload the page when switching between metrics
+  });
+
+  // Play/Pause Button
+  let playPauseButton = createButton('Play');
+  playPauseButton.position(10, 40);
+  playPauseButton.mousePressed(togglePlayPause);
+
+  // Button to fetch weather data based on user input
+  let fetchWeatherButton = select('#fetchWeatherBtn');
+  fetchWeatherButton.mousePressed(fetchWeatherHistory);
+
+  noLoop(); // Start with the graph paused
+}
+
+// Function to retrieve latitude and longitude from URL
+function getLatLonFromURL() {
+  const urlParams = new URLSearchParams(window.location.search);
+  let lat = parseFloat(urlParams.get('lat')) || 23.0225;  // Default to Ahmedabad if not provided
+  let lon = parseFloat(urlParams.get('lon')) || 72.5714; // Default to Ahmedabad if not provided
+  return { lat, lon };
+}
+
+// Function to fetch historical weather data for given number of days
+async function fetchWeatherHistory() {
+  let days = parseInt(select('#daysInput').value());
+  if (isNaN(days) || days <= 0) {
+    alert("Please enter a valid number of days");
+    return;
+  }
+
+  let { lat, lon } = getLatLonFromURL();
+  getHistoricalWeather(lat, lon, days);
+}
+
+// Function to retrieve weather data for the specified number of days
+async function getHistoricalWeather(lat, lon, days) {
+  let apiKey = 'fbef7dab24ed4e55898151039240711';
+  
+  // Calculate date range for the given number of days
+  let endDate = new Date();
+  let startDate = new Date();
+  startDate.setDate(endDate.getDate() - days);
+  let startDateStr = startDate.toISOString().split('T')[0];
+  let endDateStr = endDate.toISOString().split('T')[0];
+  
+  let url = `https://archive-api.open-meteo.com/v1/era5?latitude=${lat}&longitude=${lon}&start_date=${startDateStr}&end_date=${endDateStr}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia/Kolkata`;
+
+  try {
+    let response = await fetch(url);
+    let data = await response.json();
+    
+    if (data && data.daily) {
+      weatherData = data.daily.temperature_2m_max.map((temp, index) => ({
+        date: data.daily.time[index],
+        temp: temp,
+        humidity: Math.random() * 20 + 60,
+        condition: temp > 20 ? 'sun' : temp > 15 ? 'cloud' : 'rain'
+      }));
+      
+      updateMetricData(); // Update the data used for plotting
+      redraw();
+    } else {
+      console.error("Data structure unexpected or missing temperature data:", data);
+    }
+  } catch (error) {
+    console.error("Error fetching weather data:", error);
+  }
+}
+
+function updateMetricData() {
+  if (selectedMetric === 'temp') {
+    temperatures = weatherData.map(d => d.temp);
+  } else {
+    temperatures = weatherData.map(d => d.humidity); // Using humidity data for humidity graph
+  }
+  dates = weatherData.map(d => d.date);
+  minTemp = Math.min(...temperatures);
+  maxTemp = Math.max(...temperatures);
+}
+
+function draw() {
+  clear();
+  
+  drawBackgroundImages();
+  setGradient(0, 0, width, height, color(240, 248, 255), color(135, 206, 250));
+
+  drawTitleAndAxes();
+  plotData();
+
+  if (isPlaying) {
+    frame++;
+    if (frame % 30 === 0) {
+      offsetX += 10;
+      redraw();
+    }
+  }
+}
+
+function drawBackgroundImages() {
+  let xStep = graphWidth / (dates.length - 1);
+  for (let i = 0; i < weatherData.length; i++) {
+    let x = padding + i * xStep - offsetX;
+    if (x > padding && x < width - padding) {
+      let condition = weatherData[i].condition;
+      let icon = weatherIcons[condition];
+      imageMode(CENTER);
+      image(icon, x, graphHeight / 2 + padding, 40, 40);
+    }
+  }
+}
+
+function drawTitleAndAxes() {
+  textSize(18);
+  fill(30);
+  textAlign(CENTER);
+  text(selectedMetric === 'temp' ? "Temperature Over Time" : "Humidity Over Time", width / 2, padding - 20);
+  
+  stroke(120, 120, 120, 150);
+  strokeWeight(1.5);
+  line(padding, padding, padding, graphHeight + padding);
+  line(padding, graphHeight + padding, graphWidth + padding, graphHeight + padding);
+
+  textSize(12);
+  fill(60);
+  let xStep = graphWidth / (dates.length - 1);
+  
+  for (let i = 0; i < dates.length; i++) {
+    let x = padding + i * xStep - offsetX;
+    if (x > padding && x < width - padding) {
+      textAlign(CENTER);
+      text(dates[i], x, graphHeight + padding + 20);
+    }
+  }
+
+  for (let i = 0; i <= 5; i++) {
+    let y = map(i, 0, 5, graphHeight, 0) + padding;
+    let temp = map(i, 0, 5, minTemp, maxTemp);
+    textAlign(RIGHT);
+    text(temp.toFixed(1) + (selectedMetric === 'temp' ? "°C" : "%"), padding - 10, y + 5);
+  }
+}
+
+function plotData() {
+  noFill();
+  stroke(30, 144, 255);
+  strokeWeight(2.5);
+  beginShape();
+  let xStep = graphWidth / (temperatures.length - 1);
+
+  hoverIndex = -1;
+
+  for (let i = 0; i < temperatures.length; i++) {
+    let x = padding + i * xStep - offsetX;
+    let y = map(temperatures[i], minTemp, maxTemp, graphHeight, 0) + padding;
+    if (x > padding && x < width - padding) vertex(x, y);
+    if (dist(mouseX, mouseY, x, y) < 10) hoverIndex = i;
+  }
+  endShape();
+
+  for (let i = 0; i < temperatures.length; i++) {
+    let x = padding + i * xStep - offsetX;
+    let y = map(temperatures[i], minTemp, maxTemp, graphHeight, 0) + padding;
+    if (dist(mouseX, mouseY, x, y) < 10) {
+      fill(255);
+      noStroke();
+      ellipse(x, y, 10, 10);
+      fill(0);
+      text(dates[i] + ": " + temperatures[i].toFixed(1) + "°C", x + 15, y);
+    }
+  }
+}
+
+function setGradient(x, y, w, h, c1, c2) {
+  noFill();
+  for (let i = 0; i <= h; i++) {
+    let inter = map(i, 0, h, 0, 1);
+    let c = lerpColor(c1, c2, inter);
+    stroke(c);
+    line(x, y + i, x + w, y + i);
+  }
+}
+
+function togglePlayPause() {
+  if (isPlaying) {
+    isPlaying = false;
+    noLoop();
+  } else {
+    isPlaying = true;
+    loop();
+    frame = 0;
+  }
+}
+
+
+    </script>
+  </body>
+</html>
